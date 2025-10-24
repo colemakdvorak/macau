@@ -12,6 +12,8 @@ Here are few assumptions I make for this quick hack.
 
 1. I will assume that Uniswap V2 requests are batch auction requests. In theory, the MEV extractable from a standard AMM should be strictly greater than that of batch auctioning system. CoW swap supports batch auction but it's off-chain, and I wasn't able to gain access to their auctions endpoint. So I am using Uniswap V2 as a knock-off. This assumption is clearly wrong, but doesn't affect my goal of attempting to capture a 'lower bound' of MEV.
 2. The exogenous pricing of assets are stable within 5-10 minutes. I build and reference the asset prices after receiving a dump from the mempool. There's a latency due to lookups/waiting, hence a lag in asset price.
+3. Since pending requests don't specify gas spent, we fallback to gas limit to capture the upperbound.
+4. I clamp the fair price of tokens because some scam/meme coins with no liquidity creates a lot of noise in data.
 
 ## Data collection (target DEX)
 Here's what I did for data collection.
