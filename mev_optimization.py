@@ -4,6 +4,9 @@ from transaction import Transaction
 def helper(src, dst, q, r, exo):
     return q * (exo[src] - exo[dst] * r)
 
+# Minimal positive threshold to avoid executing zero/negative-profit batches
+EPSILON = 1e-9
+
 # Argmax function of max cumulative profit
 def cumulative_argmax(values):
     running, best_val, best_idx = 0, float('-inf'), -1
@@ -22,23 +25,47 @@ def compute_batch(batch, exo, base_asset="A"):
     for j in [a for a in assets if a != base_asset]:
         print(f"Pair ({base_asset}, {j})")
         # Forward direction tau_1 -> tau_j
-        fwd = [tx for tx in batch if tx.src == base_asset and tx.dst == j]
+        fwd = []
+        for tx in [t for t in batch if t.src == base_asset and t.dst == j]:
+            if (
+                exo.get(tx.src, 0) <= 0
+                or exo.get(tx.dst, 0) <= 0
+            ):
+                print(
+                    f"Skipping unrealistic ratio {tx.src}->{tx.dst}: "
+                    f"src={exo.get(tx.src)}, dst={exo.get(tx.dst)}"
+                )
+                continue
+            fwd.append(tx)
+
         fwd.sort(key=lambda x: x.r)
         fwd_profits = [helper(tx.src, tx.dst, tx.q, tx.r, exo) for tx in fwd]
         k1, profit1 = cumulative_argmax(fwd_profits)
 
         # Reverse direction tau_j -> tau_1
-        rev = [tx for tx in batch if tx.src == j and tx.dst == base_asset]
+        rev = []
+        for tx in [t for t in batch if t.src == j and t.dst == base_asset]:
+            if (
+                exo.get(tx.src, 0) <= 0
+                or exo.get(tx.dst, 0) <= 0
+            ):
+                print(
+                    f"Skipping unrealistic ratio {tx.src}->{tx.dst}: "
+                    f"src={exo.get(tx.src)}, dst={exo.get(tx.dst)}"
+                )
+                continue
+            rev.append(tx)
+
         rev.sort(key=lambda x: x.r)
         rev_profits = [helper(tx.src, tx.dst, tx.q, tx.r, exo) for tx in rev]
         k2, profit2 = cumulative_argmax(rev_profits)
 
-        if profit1 <= 0 and profit2 <= 0:
+        if profit1 <= EPSILON and profit2 <= EPSILON:
             decision = "Do nothing"
             executed = []
             total = 0.0
 
-        elif profit1 >= profit2:
+        elif profit1 >= profit2 and profit1 > EPSILON:
             decision = f"Execute {base_asset}->{j} and mediator ({j}->{base_asset})"
             executed = fwd[: k1 + 1]
             total = profit1
@@ -49,7 +76,7 @@ def compute_batch(batch, exo, base_asset="A"):
             mediator = Transaction(j, base_asset, total_qty, 1 / avg_rate)
             executed.append(mediator)
 
-        else:
+        elif profit2 > EPSILON:
             decision = f"Execute {j}->{base_asset} and mediator ({base_asset}->{j})"
             executed = rev[: k2 + 1]
             total = profit2
@@ -59,6 +86,10 @@ def compute_batch(batch, exo, base_asset="A"):
             avg_rate = sum(tx.r * tx.q for tx in executed) / max(total_qty, 1e-12)
             mediator = Transaction(base_asset, j, total_qty, 1 / avg_rate)
             executed.append(mediator)
+        else:
+            decision = "Do nothing"
+            executed = []
+            total = 0.0
 
         print(f"PROFIT1={profit1:.4f}, PROFIT2={profit2:.4f}")
         print(f"Decision: {decision}")
