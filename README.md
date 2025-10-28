@@ -1,7 +1,7 @@
 # Macau
 
 ## Files & Requirements
-In terms of dependencies, none other than `python >= 3.12` and newly updated `web3`.
+In terms of dependencies, none other then `python >= 3.12` and newly updated `web3`.
 
 ```
 mempool_onchain_snapshot.py # Takes a snapshot of the mempool
